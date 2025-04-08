@@ -54,5 +54,11 @@ uint8_t spindle_get_speed();
 StepperMotor motor_get_status(AxisIndex axis);
 uint32_t motor_get_step_delay();
 
+/** Parses G0/G1 commands (moves to ) ...*/
+bool gcode_process_line(const char *line);
+
+/** Absolute repositioning function */
+void move_to(int x, int y);
+
 #endif // MOTOR_CONTROL_H
 

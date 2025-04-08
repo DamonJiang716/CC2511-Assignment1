@@ -17,6 +17,11 @@ add_executable(${projname}
 )
 
 
-target_link_libraries(${projname} pico_stdlib hardware_pwm hardware_adc)
+target_link_libraries(${projname} 
+pico_stdlib 
+hardware_pwm 
+hardware_adc
+pico_stdio_usb
+)
 pico_add_extra_outputs(${projname})
 

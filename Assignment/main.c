@@ -34,6 +34,15 @@
      char cmd_buf[64];           // Command input buffer
      uint8_t buf_index = 0;      // Current buffer length
      int ch;
+
+     ////////////////////////////
+    //  motor_enable(true);
+    //  sleep_ms(500);  // Let EN settle
+
+    //  motor_move_steps(AXIS_X, 100);
+    //  sleep_ms(1000);
+    //  motor_move_steps(AXIS_X, -100);
+     ////////////////////////////
  
      while (true) {
          ch = getchar_timeout_us(100);    // Non-blocking read, returns -1 on timeout
@@ -103,6 +112,7 @@
                  cmd_lower[i] = tolower(cmd_buf[i]);
              }
  
+             /** Command Handling */
              if (strncmp(cmd_lower, "help", 4) == 0) {
                  // Show help message
                  printf("Command List:\r\n");
@@ -111,7 +121,15 @@
                  printf("  enable on/off      Enable or disable stepper drivers\r\n");
                  printf("  info               Show current status\r\n");
                  printf("  help               Show this help\r\n");
-             } else if (strncmp(cmd_lower, "info", 4) == 0) {
+             } /** "engrave" command will take a text file pasted into the serial port window and 
+                   commence serial port file reading to the RP2040 */
+             else if (strncmp(cmd_lower, "engrave", 7) == 0) {
+                printf("Starting test engraving...\n");
+                gcode_process_line("M3 S80");
+                gcode_process_line("G1 X20 Y10");  // JUST DEMO G CODE, DELETE WHEN REDUNDANT 
+                gcode_process_line("G1 X10 Y10");  
+                gcode_process_line("M5");
+             }else if (strncmp(cmd_lower, "info", 4) == 0) {
                  // Show motor positions and spindle speed
                  StepperMotor mx = motor_get_status(AXIS_X);
                  StepperMotor my = motor_get_status(AXIS_Y);
@@ -145,11 +163,12 @@ printf("Current position: X=%d, Y=%d, Z=%d (steps)\r\n", mx.position, my.positio
                      printf("Usage: spindle <speed%% (0-100)>\r\n");
                  }
              } else {
-                 // Try to parse axis movement command (x, y, z)
+                 // Try to parse shorthand 'x+100" type axis movement commands (x, y, z)
                  char axis = cmd_lower[0];
                  if ((axis == 'x' || axis == 'y' || axis == 'z') &&
                      (cmd_lower[1] == '+' || cmd_lower[1] == '-' || isdigit((uint)cmd_lower[1]))) {
  
+                    // Relative axis movement
                      char *num_ptr;
                      int move_steps;
                      if (cmd_lower[1] == '+' || cmd_lower[1] == '-') {
@@ -168,9 +187,12 @@ printf("%c axis moved %d steps, current position = %d\r\n",
        toupper(axis), move_steps, m.position);
 
                  } else {
-                     printf("Unknown command: %s\r\n", cmd_buf);
-                 }
-             }
+                    // If not axis shorthand, try full G-code file parsing
+                    if (!gcode_process_line(cmd_buf)) {  // needs to be able to be evaluated as a boolean
+                        printf("Unknown command: %s\r\n", cmd_buf);
+                    }
+                }
+            }
  
              // Reset buffer for next command
              buf_index = 0;

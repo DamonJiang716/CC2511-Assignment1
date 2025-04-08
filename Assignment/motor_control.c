@@ -1,24 +1,26 @@
 /** motor_control.c - 步进电机和主轴控制模块实现 */
 #include "motor_control.h"
+#include <stdio.h>
+#include <string.h>
 
 // --- Hardware Pin Definitions ---
-#define X_STEP_PIN        2     // X axis STEP pin
-#define X_DIR_PIN         3     // X axis DIR pin
+#define X_STEP_PIN        0     // X axis STEP pin                          // STEP to GPIO   // STEP to GPIO2
+#define X_DIR_PIN         1     // X axis DIR pin                           // DIR to GPIO1   // DIR to GPIO3
 #define Y_STEP_PIN        4     // Y axis STEP pin
 #define Y_DIR_PIN         5     // Y axis DIR pin
 #define Z_STEP_PIN        6     // Z axis STEP pin
 #define Z_DIR_PIN         7     // Z axis DIR pin
-#define EN_PIN            8     // Global ENABLE pin for stepper drivers
-#define M0_PIN            9     // Microstepping control pin M0
+#define EN_PIN            4     // Global ENABLE pin for stepper drivers    // ENABLE to GPIO4 // ENABLE to GPIO8
+#define M0_PIN            9     // Microstepping control pin M0          
 #define M1_PIN           10     // Microstepping control pin M1
 #define M2_PIN           11     // Microstepping control pin M2
-#define SPINDLE_PWM_PIN  14     // PWM output pin for spindle (e.g., GP14)
+#define SPINDLE_PWM_PIN  14     // PWM output pin for spindle (e.g., GP14)  // not mapped yet
 
 // --- Control Parameter Macros ---
 #define MICROSTEP_MODE        16     // Microstepping mode (valid: 1, 2, 4, 8, 16, 32)
 #define MIN_STEPPER_SPEED    100     // Minimum stepper speed (steps/second)
 #define MAX_STEPPER_SPEED   1000     // Maximum stepper speed (steps/second)
-#define STEP_PULSE_US         10     // Duration of STEP high pulse (in microseconds)
+#define STEP_PULSE_US         1000     // Duration of STEP high pulse (in microseconds)
 #define STEP_DEFAULT_SPEED   500     // Default stepper speed (steps/second)
 #define MANUAL_STEP_SIZE      10     // Manual jog step size (used by arrow keys)
 
@@ -159,7 +161,7 @@ void motor_move_steps(AxisIndex axis, int32_t steps) {
         sleep_us(STEP_PULSE_US);
         gpio_put(motor->step_pin, 0); // End pulse
         if (step_delay_us > STEP_PULSE_US)
-            sleep_us(step_delay_us - STEP_PULSE_US);
+            sleep_us(step_delay_us - STEP_PULSE_US); //
         else
             sleep_us(1); // Fallback delay
     }
@@ -187,4 +189,71 @@ uint32_t motor_get_step_delay() {
 /** Get current spindle speed percentage */
 uint8_t spindle_get_speed() {
     return spindle_speed_percent;
+}
+
+/** Interpret char c = char(ch) G-Code Commands and calls relevant functions like move_to(int x, int y) 
+ * or spindle_set_speed(uint8_t percent) */
+bool gcode_process_line(const char *line) {
+    int x = -9999, y = -9999, speed = -1;
+    char g_cmd[4];
+
+    // Parse G0 or G1
+    if (sscanf(line, "G%3s", g_cmd) == 1) {
+        if (strcmp(g_cmd, "0") == 0 || strcmp(g_cmd, "1") == 0) {
+            // Scan for optional X and Y values
+            const char *p = line;
+            while (*p) {
+                if (*p == 'X' || *p == 'x') x = atoi(p + 1);
+                if (*p == 'Y' || *p == 'y') y = atoi(p + 1);
+                p++;
+            }
+
+            if (x == -9999) x = motor_get_status(AXIS_X).position;
+            if (y == -9999) y = motor_get_status(AXIS_Y).position;
+            move_to(x, y);
+            return true;
+        }
+    }
+
+    // M3 Sxx (spindle ON)
+    if (strstr(line, "M3") != NULL || strstr(line, "m3") != NULL) { // case insensitive check for Spindle on G-Code instruction
+        if (sscanf(line, "%*s S%d", &speed) == 1 || sscanf(line, "%*s s%d", &speed) == 1) {
+            if (speed < 0) speed = 0;
+            if (speed > 100) speed = 100;
+            spindle_set_speed(speed);
+            return true;
+        }
+    }
+
+    // M5 (spindle OFF)
+    if (strncmp(line, "M5", 2) == 0) {
+        spindle_set_speed(0);
+        return true;
+    }
+
+    // Sxx (set spindle speed)
+    if (sscanf(line, "S%d", &speed) == 1) {
+        spindle_set_speed(speed);
+        return true;
+    }
+
+    return false;
+}
+
+/** Process G-code commands (G0/G1) */
+void move_to(int x, int y) {
+    StepperMotor mx = motor_get_status(AXIS_X);
+    StepperMotor my = motor_get_status(AXIS_Y);
+
+    int dx = x - mx.position;
+    int dy = y - my.position;
+
+    if (dx != 0) {
+        motor_move_steps(AXIS_X, dx);
+    }
+    if (dy != 0) {
+        motor_move_steps(AXIS_Y, dy);
+    }
+
+    printf("Moved to X=%d Y=%d (ΔX=%d, ΔY=%d)\r\n", x, y, dx, dy);
 }
