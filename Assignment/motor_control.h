@@ -8,7 +8,7 @@
 #define MICROSTEP_MODE        16     // Microstepping mode (valid: 1, 2, 4, 8, 16, 32)
 #define MIN_STEPPER_SPEED    100     // Minimum stepper speed (steps/second)
 #define MAX_STEPPER_SPEED   1000     // Maximum stepper speed (steps/second)
-#define STEP_PULSE_US         10     // Duration of STEP high pulse (in microseconds)
+#define STEP_PULSE_US         1000     // Duration of STEP high pulse (in microseconds)
 #define STEP_DEFAULT_SPEED   500     // Default stepper speed (steps/second)
 #define MANUAL_STEP_SIZE      10     // Manual jog step size (used by arrow keys)
 /** Stepper motor status structure */
@@ -17,6 +17,7 @@ typedef struct {
     uint dir_pin;       // DIR direction control pin number
     int32_t position;   // Current axis position (in steps)
     int32_t max_steps;  // Maximum number of steps for this axis (based on travel length)
+    int microstep_mode;  // Track current microstep mode settings
 } StepperMotor;
 
 /** Axis index enumeration for array access */
@@ -33,7 +34,7 @@ void motor_enable(bool enable);
 /** Set microstepping mode for stepper drivers
  *  @param microstep Microstep value (allowed: 1, 2, 4, 8, 16, 32 for full, half, 1/4...1/32 step)
  */
-void motor_set_microstep(int microstep);
+void motor_set_microstep(AxisIndex axis, int microstep);
 
 /** Move a specific axis by a number of steps
  *  @param axis Axis index (AXIS_X, AXIS_Y, AXIS_Z)

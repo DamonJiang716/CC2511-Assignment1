@@ -4,6 +4,7 @@
  * Assignment
  * ***********************************************************/
 
+ #include <stdlib.h>
  #include <stdio.h>
  #include <string.h>
  #include <ctype.h>
@@ -13,8 +14,11 @@
  int main() {
      // Initialize standard I/O to enable USB serial
      stdio_init_all();
-     sleep_ms(1000);  // Delay to ensure USB is ready (1 second)
-     motor_init();    // Initialize motor control module (GPIO, PWM, etc.)
+     while (!stdio_usb_connected()) {
+         sleep_ms(10);
+     }
+     sleep_ms(100);  // Further delay necessary?
+     motor_init();   // Initialize motor control module (GPIO, PWM, etc.)
  
      // Print welcome and help message
      printf("\n=== CNC Control System Started ===\r\n");
@@ -22,12 +26,17 @@
      printf("Spindle speed range: 0%% to 100%%\r\n");
      printf("Current microstepping mode: 1/%d step\r\n", MICROSTEP_MODE);
      printf("Supported commands:\r\n");
-     printf("  spindle <0-100>    Set spindle speed (%%)\r\n");
-     printf("  x+N / x-N          Move X axis by ±N steps (same for y, z)\r\n");
-     printf("  enable on/off      Enable or disable stepper drivers\r\n");
-     printf("  info               Show current position and speed info\r\n");
-     printf("  help               Show command list\r\n");
+     printf("  spindle <0-100>      Set spindle speed (%%)\r\n");
+     printf("  x+N / x-N            Move X axis by ±N steps (same for y, z)\r\n");
+     printf("  enable on/off        Enable or disable stepper drivers\r\n");
+     printf("  G0 / G1 X<n> Y<n>    Move to absolute position (X, Y)\r\n");
+    //  printf("  M3 S<1-100>          START spindle at speed <n> (0-100)\r\n"); same as spindle <1-100> command
+     printf("  info                 Show current position and speed info\r\n");
+     printf("  help                 Show command list\r\n");
+     printf("  M350 X<n> Y<n> Z<n>  Set microstepping mode from; 1, 1/2, 1/4, 1/8, 1/16 & 1/32 step options where step: 1/n\r\n");
+     printf("  G92                  Set current position as (0,0,0)\r\n");
      printf("Use arrow keys ←→ to control X-axis, ↑↓ to jog Y-axis by %d steps\r\n", MANUAL_STEP_SIZE);
+     printf("Right click to paste your clipboard G-Code file into the terminal and ENSURE YOU PRESS ENTER\r\n");
      printf("--------------------------------------------\r\n");
  
      // Main loop: read and execute serial commands
@@ -116,29 +125,38 @@
              if (strncmp(cmd_lower, "help", 4) == 0) {
                  // Show help message
                  printf("Command List:\r\n");
-                 printf("  spindle <0-100>    Set spindle speed (%%)\r\n");
-                 printf("  x+N / x-N          Move X axis (y/z similar)\r\n");
-                 printf("  enable on/off      Enable or disable stepper drivers\r\n");
-                 printf("  info               Show current status\r\n");
-                 printf("  help               Show this help\r\n");
+                 printf("  spindle <0-100>       Set spindle speed (%%)\r\n");
+                 printf("  x+N / x-N             Move X axis (y/z similar)\r\n");
+                 printf("  M5                    Turn spindle OFF\r\n");
+                 printf("  enable on/off         Enable or disable stepper drivers\r\n");
+                 printf("  info                  Show current status\r\n");
+                 printf("  help                  Show this help\r\n");
+                 printf("  G0 / G1 X<n> Y<n>     Move to absolute X/Y position (e.g., G1 X100 Y100)\r\n");
+                 printf("  M350 X<n> Y<n> Z<n>   Set microstepping mode (n = 1, 2, 4, 8, 16, 32)\r\n");
+                 printf("  G92                   Set current position to zero (any axis)\r\n");
+                 printf("Right click to paste your clipboard G-Code file into the terminal and ENSURE YOU PRESS ENTER\r\n");
              } /** "engrave" command will take a text file pasted into the serial port window and 
                    commence serial port file reading to the RP2040 */
-             else if (strncmp(cmd_lower, "engrave", 7) == 0) {
-                printf("Starting test engraving...\n");
-                gcode_process_line("M3 S80");
-                gcode_process_line("G1 X20 Y10");  // JUST DEMO G CODE, DELETE WHEN REDUNDANT 
-                gcode_process_line("G1 X10 Y10");  
-                gcode_process_line("M5");
-             }else if (strncmp(cmd_lower, "info", 4) == 0) {
+            //  else if (strncmp(cmd_lower, "engrave", 7) == 0) {
+            //     printf("Starting test engraving...\n");
+            //     gcode_process_line("M3 S80");
+            //     gcode_process_line("G1 X20 Y10");  // JUST DEMO G CODE, DELETE WHEN REDUNDANT 
+            //     gcode_process_line("G1 X10 Y10");  
+            //     gcode_process_line("M5");
+            //  }
+              else if (strncmp(cmd_lower, "info", 4) == 0) {
+                printf("\r\n--- Machine Status ---\r\n");
                  // Show motor positions and spindle speed
                  StepperMotor mx = motor_get_status(AXIS_X);
                  StepperMotor my = motor_get_status(AXIS_Y);
                  StepperMotor mz = motor_get_status(AXIS_Z);
-printf("Current position: X=%d, Y=%d, Z=%d (steps)\r\n", mx.position, my.position, mz.position);
-
+                 printf("Current position: X=%d, Y=%d, Z=%d (steps)\r\n", mx.position, my.position, mz.position);
                  printf("Spindle speed: %d%%\r\n", spindle_get_speed());
                  printf("Stepper speed range: %d~%d steps/sec (current delay = %d µs)\r\n",
        MIN_STEPPER_SPEED, MAX_STEPPER_SPEED, motor_get_step_delay());
+                 printf("Microstepping: X=1/%d, Y=1/%d, Z=1/16 (fixed)\r\n",
+                 mx.microstep_mode, my.microstep_mode);
+ 
 
              } else if (strncmp(cmd_lower, "enable", 6) == 0) {
                  // Enable or disable drivers
