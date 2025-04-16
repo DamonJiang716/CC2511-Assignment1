@@ -22,7 +22,7 @@
 #define Z_M0_PIN          0       // Microstepping control pin M0 for Z axis driver   // deadass going to ground (pin 13) ?
 #define Z_M1_PIN          0       // Microstepping control pin M1 for Z axis driver   // GND too (pin 8) ? Using unwired GP0 for now
 #define Z_M2_PIN           18     // Microstepping control pin M2 for Z axis driver
-#define SPINDLE_PWM_PIN  0     // PWM output pin for spindle (e.g., GP14)  // not mapped yet
+#define SPINDLE_PWM_PIN   17      // PWM enable/disbale output pin for spindle 
 
 // --- Control Parameter Macros ---
 #define MICROSTEP_MODE        16     // Microstepping mode (valid: 1, 2, 4, 8, 16, 32)
@@ -214,7 +214,6 @@ void motor_set_microstep(AxisIndex axis, int microstep) {
     motors[axis].microstep_mode = microstep;
 
     // Assign the correct M0, M1, M2 pins for each axis
-    microstep = 1;  // hardcoded to Case 1: FULL STEP for now to get around GND pin mappings  REMOVE 
     switch (axis) {
         case AXIS_X:
             m0_pin = X_M0_PIN;
@@ -286,7 +285,12 @@ void motor_move_steps(AxisIndex axis, int32_t steps) {
     }
 
     StepperMotor *motor = &motors[axis];
-    int32_t target_position = motor->position + (dir ? steps : -steps);
+    int32_t delta = (dir ? steps : -steps);
+    // Reverse Y direction only in coordinate system
+    // if (axis == AXIS_Y) {
+    //     delta = -delta;
+    // }
+    int32_t target_position = motor->position + delta;
 
     if (target_position > motor->max_steps) {
         target_position = motor->max_steps;
@@ -318,15 +322,51 @@ void motor_move_steps(AxisIndex axis, int32_t steps) {
 }
 
 /** Set spindle speed (PWM duty cycle in percentage) */
+/** Set spindle speed (PWM duty cycle in percentage) with smooth ramp-up */
 void spindle_set_speed(uint8_t percent) {
     if (percent > 100) percent = 100;
+
     uint slice_num = pwm_gpio_to_slice_num(SPINDLE_PWM_PIN);
     uint chan = pwm_gpio_to_channel(SPINDLE_PWM_PIN);
-    uint16_t level = percent * 10; // With wrap=999, 100% ≈ 1000
-    if (level > 1000) level = 1000;
-    pwm_set_chan_level(slice_num, chan, level);
+    uint16_t target_level = percent * 10;  // With wrap=999
+    if (target_level > 1000) target_level = 1000;
+
+    if (percent == 0) {
+        pwm_set_chan_level(slice_num, chan, 0);
+        pwm_set_enabled(slice_num, false);
+    } else {
+        pwm_set_enabled(slice_num, true);
+
+        // Estimate previous level from the last known % value
+        uint16_t current_level = spindle_speed_percent * 10;
+        if (current_level > 1000) current_level = 1000;
+
+        // Ramp up/down smoothly to target level
+        const int step = 20;
+        const int delay_ms = 10;
+
+        if (current_level < target_level) {
+            while (current_level < target_level) {
+                current_level += step;
+                if (current_level > target_level) current_level = target_level;
+                pwm_set_chan_level(slice_num, chan, current_level);
+                sleep_ms(delay_ms);
+            }
+        } else if (current_level > target_level) {
+            while (current_level > target_level) {
+                current_level -= step;
+                if (current_level < target_level) current_level = target_level;
+                pwm_set_chan_level(slice_num, chan, current_level);
+                sleep_ms(delay_ms);
+            }
+        }
+    }
+
     spindle_speed_percent = percent;
 }
+
+
+
 StepperMotor motor_get_status(AxisIndex axis) {
     return motors[axis];  
 }

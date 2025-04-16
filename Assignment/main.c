@@ -20,9 +20,9 @@
      sleep_ms(100);  // Further delay necessary?
      motor_init();   // Initialize motor control module (GPIO, PWM, etc.)
 
-     const uint64_t idle_timeout_us = 10000000;  // 10 seconds
-     uint64_t last_activity_time_us = time_us_64();  // used for resetting spindle position
-     bool home_reset_done = false;
+    //  const uint64_t idle_timeout_us = 10000000;  // 10 seconds
+    //  uint64_t last_activity_time_us = time_us_64();  // used for resetting spindle position
+    //  bool home_reset_done = false;
  
      // Print welcome and help message
      printf("\n=== CNC Control System Started ===\r\n");
@@ -48,14 +48,14 @@
      uint8_t buf_index = 0;      // Current buffer length
      int ch;
 
-     ////////////////////////////
+    //  //////////////////////////
     //  motor_enable(true);
     //  sleep_ms(500);  // Let EN settle
 
-    //  motor_move_steps(AXIS_X, 100);
+    //  motor_move_steps(AXIS_Y, 100);
     //  sleep_ms(1000);
-    //  motor_move_steps(AXIS_X, -100);
-     ////////////////////////////
+    //  motor_move_steps(AXIS_Y, -100);
+    //  //////////////////////////
  
      while (true) {
          ch = getchar_timeout_us(100);    // Non-blocking read, returns -1 on timeout
@@ -91,23 +91,23 @@
                  switch (c2) {
                      case 'A':  // ↑ Up arrow - move Y axis forward
                          motor_move_steps(AXIS_Y, -MANUAL_STEP_SIZE);
-                         last_activity_time_us = time_us_64();
-                         home_reset_done = false;
+                         // last_activity_time_us = time_us_64();
+                         // home_reset_done = false;
                          break;
                      case 'B':  // ↓ Down arrow - move Y axis backward
                          motor_move_steps(AXIS_Y, MANUAL_STEP_SIZE);
-                         last_activity_time_us = time_us_64();
-                         home_reset_done = false;
+                         // last_activity_time_us = time_us_64();
+                         // home_reset_done = false;
                          break;
                      case 'C':  // → Right arrow - move X axis forward
                          motor_move_steps(AXIS_X, -MANUAL_STEP_SIZE);
-                         last_activity_time_us = time_us_64();
-                         home_reset_done = false;
+                         // last_activity_time_us = time_us_64();
+                         // home_reset_done = false;
                          break;
                      case 'D':  // ← Left arrow - move X axis backward
                          motor_move_steps(AXIS_X, MANUAL_STEP_SIZE);
-                         last_activity_time_us = time_us_64();
-                         home_reset_done = false;
+                         // last_activity_time_us = time_us_64();
+                         // home_reset_done = false;
                          break;
                      default:
                          break;
@@ -146,6 +146,7 @@
                  printf("  G0 / G1 X<n> Y<n>     Move to absolute X/Y position (e.g., G1 X100 Y100)\r\n");
                  printf("  M350 X<n> Y<n> Z<n>   Set microstepping mode (n = 1, 2, 4, 8, 16, 32)\r\n");
                  printf("  G92                   Set current position to zero (any axis)\r\n");
+                 printf("  home                  Resets spindle position to (0,0,0)\r\n");
                  printf("Right click to paste your clipboard G-Code file into the terminal and ENSURE YOU PRESS ENTER\r\n");
              } /** "engrave" command will take a text file pasted into the serial port window and 
                    commence serial port file reading to the RP2040 */
@@ -174,11 +175,11 @@
                 if (strstr(cmd_lower, "on") != NULL || strstr(cmd_lower, "1") != NULL) {
                     motor_enable(true);
                     printf("Stepper drivers ENABLED (ENABLE=LOW)\r\n");
-                    last_activity_time_us = time_us_64();  
+                    // last_activity_time_us = time_us_64();  
                 } else if (strstr(cmd_lower, "off") != NULL || strstr(cmd_lower, "0") != NULL) {
                     motor_enable(false);
                     printf("Stepper drivers DISABLED (ENABLE=HIGH)\r\n");
-                    last_activity_time_us = time_us_64();               // tracks time since last valid enable/disable cmd
+                    // last_activity_time_us = time_us_64();               // tracks time since last valid enable/disable cmd
                 } else {
                     printf("Usage: enable on/off or 1/0\r\n");  
                 }
@@ -190,10 +191,12 @@
                      if (speed_val > 100) speed_val = 100;
                      spindle_set_speed((uint8_t)speed_val);
                      printf("Spindle speed set to %d%%\r\n", speed_val);
-                     last_activity_time_us = time_us_64();               // tracks time since last valid spindle cmd
+                     // last_activity_time_us = time_us_64();               // tracks time since last valid spindle cmd
                  } else {
                      printf("Usage: spindle <speed%% (0-100)>\r\n");
                  }
+             } else if (strncmp(cmd_lower, "home", 4) == 0) {
+                gcode_process_line("G1 X0 Y0 Z0");  // Move to home position
              } else {
                  // Try to parse shorthand 'x+100" type axis movement commands (x, y, z)
                  char axis = cmd_lower[0];
@@ -216,13 +219,10 @@
                      motor_move_steps(ax, move_steps);
                      StepperMotor m = motor_get_status(ax);
                      printf("%c axis moved %d steps, current position = %d\r\n",
-                     toupper(axis), move_steps, m.position);
-                     last_activity_time_us = time_us_64();    // tracks time since last valid X+N style cmd
+                     toupper(axis), move_steps, m.position); 
                  } else {
                     // If not axis shorthand, try full G-code file parsing
-                    if (gcode_process_line(cmd_buf)) {
-                        last_activity_time_us = time_us_64();  // tracks time since last valid Gcode cmd
-                    } else {
+                    if (!gcode_process_line(cmd_buf)) {
                         printf("Unknown command: %s\r\n", cmd_buf);
                     }                    
                 }
@@ -243,18 +243,6 @@
                  printf("\r\nCommand too long. Reset. Please try again.\r\n> ");
              }
          }
-         // If no valid command has been issued in more than 10sec, reset the spindle position to (0,0,0)
-         if (buf_index == 0 && (time_us_64() - last_activity_time_us) > idle_timeout_us) { // if inactive and has been inactive 
-            // Move back to home position
-            move_to(0, 0);  // Moves X and Y back to 0
-            motor_move_steps(AXIS_Z, -motor_get_status(AXIS_Z).position);  // Move Z back to 0
-        
-            // Reset logical position to (0,0,0)
-            motor_reset_position(0, 0, 0);
-        
-            printf("Timeout — returned to home position (0,0,0)\n");
-            last_activity_time_us = time_us_64();  // Reset timer to prevent unnecessary resets
-        }
         
      } // while(true)
  
