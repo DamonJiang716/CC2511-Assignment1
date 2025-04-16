@@ -42,6 +42,9 @@ void motor_set_microstep(AxisIndex axis, int microstep);
  */
 void motor_move_steps(AxisIndex axis, int32_t steps);
 
+/** (0,0,0) reset helper function to be called 10 seconds after the last valid command input */
+void motor_reset_position(int x, int y, int z);
+
 /** Set spindle motor speed (PWM duty cycle)
  *  @param percent Speed percentage (range: 0 to 100)
  */

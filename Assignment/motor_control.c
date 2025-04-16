@@ -67,6 +67,13 @@ static uint8_t spindle_speed_percent = 0; // Current spindle speed in percentage
 //     }
 // }
 
+/** Reset position to (x,y,z) - called from main.c as a way to alter motors struct without visibility issues */
+void motor_reset_position(int x, int y, int z) {
+    motors[AXIS_X].position = x;
+    motors[AXIS_Y].position = y;
+    motors[AXIS_Z].position = z;
+}
+
 /** Initialize the motor control module */
 void motor_init() {
     // === Initialize stepper motor structs ===
