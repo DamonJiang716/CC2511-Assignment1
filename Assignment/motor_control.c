@@ -3,7 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
+#include"hardware/pwm.h"
+#include"hardware/regs/pwm.h"
+#include"hardware/structs/pwm.h"
 // --- Hardware Pin Definitions ---
 // GND to Pico pin 18
 #define X_STEP_PIN        15     // X axis STEP pin              // STEP to GPIO15   // STEP to GPIO   // STEP to GPIO2
@@ -105,6 +107,10 @@ void motor_init() {
     gpio_set_dir(EN_PIN, GPIO_OUT);
     gpio_put(EN_PIN, 0); // Active LOW
 
+    gpio_init(17);
+    gpio_set_dir(17, GPIO_OUT);
+    gpio_put(17, 0);
+
     // === Initialize per-axis microstepping pins ===
     gpio_init(X_M0_PIN); gpio_set_dir(X_M0_PIN, GPIO_OUT);
     gpio_init(X_M1_PIN); gpio_set_dir(X_M1_PIN, GPIO_OUT);
@@ -137,7 +143,7 @@ void motor_init() {
     uint chan = pwm_gpio_to_channel(SPINDLE_PWM_PIN);
     pwm_config config = pwm_get_default_config();
     pwm_config_set_clkdiv(&config, 125.0f);  // 1 MHz base
-    pwm_set_wrap(slice_num, 999);            // ~1 kHz PWM
+    pwm_set_wrap(slice_num, 999);            // ~20 kHz PWM | 999 for ~1kHz
     pwm_init(slice_num, &config, true);
     pwm_set_chan_level(slice_num, chan, 0);  // Start off
     spindle_speed_percent = 0;
@@ -328,7 +334,7 @@ void spindle_set_speed(uint8_t percent) {
 
     uint slice_num = pwm_gpio_to_slice_num(SPINDLE_PWM_PIN);
     uint chan = pwm_gpio_to_channel(SPINDLE_PWM_PIN);
-    uint16_t target_level = percent * 10;  // With wrap=999
+    uint16_t target_level = percent * 10;  // With wrap=999 |10
     if (target_level > 1000) target_level = 1000;
 
     if (percent == 0) {
@@ -364,8 +370,6 @@ void spindle_set_speed(uint8_t percent) {
 
     spindle_speed_percent = percent;
 }
-
-
 
 StepperMotor motor_get_status(AxisIndex axis) {
     return motors[axis];  

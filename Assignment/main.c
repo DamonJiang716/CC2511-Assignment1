@@ -184,18 +184,17 @@
                     printf("Usage: enable on/off or 1/0\r\n");  
                 }
             } else if (strncmp(cmd_lower, "spindle", 7) == 0) {
-                 // Set spindle speed
-                 int speed_val;
-                 if (sscanf(cmd_lower, "spindle %d", &speed_val) == 1) {
-                     if (speed_val < 0) speed_val = 0;
-                     if (speed_val > 100) speed_val = 100;
-                     spindle_set_speed((uint8_t)speed_val);
-                     printf("Spindle speed set to %d%%\r\n", speed_val);
-                     // last_activity_time_us = time_us_64();               // tracks time since last valid spindle cmd
-                 } else {
-                     printf("Usage: spindle <speed%% (0-100)>\r\n");
-                 }
-             } else if (strncmp(cmd_lower, "home", 4) == 0) {
+                // Set spindle speed
+                int speed_val;
+                if (sscanf(cmd_lower, "spindle %d", &speed_val) == 1) {
+                    if (speed_val < 0) speed_val = 0;
+                    if (speed_val > 100) speed_val = 100;
+                    spindle_set_speed((uint8_t)speed_val);
+                    printf("Spindle speed set to %d%%\r\n", speed_val);
+                } else {
+                    printf("Usage: spindle <speed%% (0-100)>\r\n");
+                }
+            } else if (strncmp(cmd_lower, "home", 4) == 0) {
                 gcode_process_line("G1 X0 Y0 Z0");  // Move to home position
              } else {
                  // Try to parse shorthand 'x+100" type axis movement commands (x, y, z)
